@@ -1,0 +1,48 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "ES2022",
+    "esModuleInterop": true,
+    "target": "ES2022",
+    "noImplicitAny": true,
+    "noImplicitOverride": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
+    "moduleResolution": "node",
+    "sourceMap": true,
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "*": [
+        "node_modules/*"
+      ]
+    },
+    "typeRoots": [
+      "./src/types",
+      "./node_modules/@types"
+    ],
+    "strict": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    // "strictBindCallApply": true,
+    "lib": [
+      "ES2023"
+    ],
+    "allowSyntheticDefaultImports": true,
+    "plugins": [
+      {
+        "transform": "typia/lib/transform"
+      }
+    ]
+  },
+  "ts-node": {
+    "experimentalSpecifierResolution": "node",
+    "transpileOnly": true,
+    "esm": true,
+    "swc": true,
+    "compilerOptions": {
+      "module": "ESNext"
+    }
+  }
+}
