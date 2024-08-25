@@ -1,16 +1,27 @@
-import { SerialPort, SlipDecoder, SlipEncoder } from "serialport";
+import { SerialPort, SlipDecoder } from "serialport";
 import { LpLoraPacketCrcChecker } from "./packetDecoder";
 import crc from "crc/crc16kermit";
-import { deserializeUartPacket, LpLoraDriverEvents, UartPacket } from "./defs";
-import { EventEmitter } from "stream";
+import {
+  deserializeUartPacket,
+  LpLoraDriverEvents,
+  SLIP_END,
+  SLIP_ESC,
+  SLIP_ESC_END,
+  SLIP_ESC_ESC,
+  SLIP_ESC_START,
+  SLIP_START,
+  UartPacket,
+  UartPingPacket,
+} from "./defs";
+import Stream from "stream";
 
-export class LpLoraDriver extends EventEmitter<LpLoraDriverEvents> {
+export class LpLoraDriver extends Stream.EventEmitter<LpLoraDriverEvents> {
   protected uart: SerialPort;
   protected decoder: LpLoraPacketCrcChecker;
   protected cachedData: Buffer = Buffer.alloc(0);
 
   private createDecoder = () => {
-    this.decoder.on("data", (chunk: Buffer) => {
+    this.uart.on("data", (chunk: Buffer) => {
       this.emit("rawDataReceived", chunk);
       this.cachedData = Buffer.concat([this.cachedData, chunk]);
     });
@@ -78,7 +89,7 @@ export class LpLoraDriver extends EventEmitter<LpLoraDriverEvents> {
    * Constructor of LpLoRa driver
    * @param port UART port, e.g. "/dev/ttyUSB0"
    * @param baud Leave 0 or null for 9600 by default
-   * @param stopBit Leave null to be 2 by default
+   * @param stopBit Leave null to be 1 by default
    */
   constructor(port: string, baud?: number, stopBit?: 1 | 2 | 1.5 | null | undefined) {
     super();
@@ -106,28 +117,51 @@ export class LpLoraDriver extends EventEmitter<LpLoraDriverEvents> {
     return deserializeUartPacket(packet);
   };
 
+  public sendPing = async (): Promise<void> => {
+    const packet = new UartPingPacket();
+    await this.sendPacket(packet);
+  };
+
   public sendPacket = async (packet: UartPacket): Promise<void> => {
     await this.sendPacketBuffer(packet.serialize());
   };
 
   public sendPacketBuffer = async (data: Buffer): Promise<void> => {
-    const encoder = new SlipEncoder({
-      START: 0xa5,
-      END: 0xc0,
-      ESC: 0xdb,
-      ESC_END: 0xdc,
-      ESC_ESC: 0xdd,
-      ESC_START: 0xde,
-    });
-
-    encoder.push(data);
-
     const checksum = crc(data);
     const checksumBuf = Buffer.alloc(2);
     checksumBuf.writeUInt16LE(checksum);
-    encoder.push(checksumBuf);
-    encoder.push(null);
-    encoder.pipe(this.uart);
+    const packetBuf = Buffer.concat([data, checksumBuf]);
+
+    let idx = 0;
+    const encodedBuf = Buffer.alloc(packetBuf.length * 2 + 2); // Worst case scenario of SLIP (with no SLIP_START end END conunted)
+    encodedBuf[idx++] = SLIP_START;
+    for (const b of packetBuf) {
+      switch (b) {
+        case SLIP_START: {
+          encodedBuf[idx++] = SLIP_ESC;
+          encodedBuf[idx++] = SLIP_ESC_START;
+          break;
+        }
+        case SLIP_END: {
+          encodedBuf[idx++] = SLIP_ESC;
+          encodedBuf[idx++] = SLIP_ESC_END;
+          break;
+        }
+        case SLIP_ESC: {
+          encodedBuf[idx++] = SLIP_ESC;
+          encodedBuf[idx++] = SLIP_ESC_ESC;
+          break;
+        }
+        default: {
+          encodedBuf[idx++] = b;
+        }
+      }
+    }
+
+    encodedBuf[idx++] = SLIP_END;
+    const finalBuf = encodedBuf.subarray(0, idx);
+
+    this.uart.write(finalBuf);
 
     return new Promise((resolve, reject) => {
       this.uart.drain((err) => {

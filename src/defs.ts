@@ -117,3 +117,10 @@ export type LpLoraDriverEvents = {
   fullDataReceived: [data: Buffer];
   error: [err: Error | unknown | object];
 };
+
+export const SLIP_START = 0xa5;
+export const SLIP_END = 0xc0;
+export const SLIP_ESC = 0xdb;
+export const SLIP_ESC_END = 0xdc;
+export const SLIP_ESC_ESC = 0xdd;
+export const SLIP_ESC_START = 0xde;
