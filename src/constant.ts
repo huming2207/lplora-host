@@ -1,3 +1,5 @@
+import { UartPacket } from "./packet";
+
 export enum PacketType {
   // Request from host
   Ping = 0x00,
@@ -17,3 +19,17 @@ export enum PacketType {
   Nack = 0x84,
   RadioReceivedPacket = 0xc1,
 }
+
+export const SLIP_START = 0xa5;
+export const SLIP_END = 0xc0;
+export const SLIP_ESC = 0xdb;
+export const SLIP_ESC_END = 0xdc;
+export const SLIP_ESC_ESC = 0xdd;
+export const SLIP_ESC_START = 0xde;
+
+export type LpLoraDriverEvents = {
+  packetReceived: [packet: UartPacket];
+  rawDataReceived: [data: Buffer];
+  end: [data: Buffer];
+  error: [err: Error | unknown | object];
+};

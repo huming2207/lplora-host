@@ -1,8 +1,9 @@
 import { SerialPort, SlipDecoder } from "serialport";
 import { LpLoraPacketCrcChecker } from "./packetDecoder";
 import crc from "crc/crc16kermit";
+import { deserializeUartPacket, UartPacket, UartPingPacket } from "./packet";
+import Stream from "stream";
 import {
-  deserializeUartPacket,
   LpLoraDriverEvents,
   SLIP_END,
   SLIP_ESC,
@@ -10,10 +11,7 @@ import {
   SLIP_ESC_ESC,
   SLIP_ESC_START,
   SLIP_START,
-  UartPacket,
-  UartPingPacket,
-} from "./defs";
-import Stream from "stream";
+} from "./constant";
 
 export class LpLoraDriver extends Stream.EventEmitter<LpLoraDriverEvents> {
   protected uart: SerialPort;
@@ -21,18 +19,12 @@ export class LpLoraDriver extends Stream.EventEmitter<LpLoraDriverEvents> {
   protected cachedData: Buffer = Buffer.alloc(0);
 
   private createDecoder = () => {
-    this.uart.on("data", (chunk: Buffer) => {
+    this.decoder.on("data", (chunk: Buffer) => {
       this.emit("rawDataReceived", chunk);
       this.cachedData = Buffer.concat([this.cachedData, chunk]);
-    });
-
-    this.decoder.on("end", (chunk: Buffer) => {
-      this.emit("rawDataReceived", chunk);
-      this.cachedData = Buffer.concat([this.cachedData, chunk]);
-      this.emit("fullDataReceived", this.cachedData);
       try {
         const packet = deserializeUartPacket(chunk);
-        if (packet !== null && Buffer.isBuffer(packet)) {
+        if (packet !== null) {
           this.emit("packetReceived", packet);
         } else {
           console.warn("Packet is null?");
@@ -40,7 +32,12 @@ export class LpLoraDriver extends Stream.EventEmitter<LpLoraDriverEvents> {
       } catch (err) {
         this.emit("error", err);
       }
+    });
 
+    this.decoder.on("end", (chunk: Buffer) => {
+      this.emit("rawDataReceived", chunk);
+      this.cachedData = Buffer.concat([this.cachedData, chunk]);
+      this.emit("end", this.cachedData);
       this.cachedData = Buffer.alloc(0);
       this.decoder = this.uart.pipe(
         new SlipDecoder({
@@ -50,10 +47,9 @@ export class LpLoraDriver extends Stream.EventEmitter<LpLoraDriverEvents> {
           ESC_END: 0xdc,
           ESC_ESC: 0xdd,
           ESC_START: 0xde,
-        }).pipe(new LpLoraPacketCrcChecker()),
+        }),
       );
     });
-
     this.decoder.on("close", () => {
       this.cachedData = Buffer.alloc(0);
       this.decoder = this.uart.pipe(
@@ -64,13 +60,11 @@ export class LpLoraDriver extends Stream.EventEmitter<LpLoraDriverEvents> {
           ESC_END: 0xdc,
           ESC_ESC: 0xdd,
           ESC_START: 0xde,
-        }).pipe(new LpLoraPacketCrcChecker()),
+        }),
       );
     });
-
     this.decoder.on("error", (err) => {
       this.emit("error", err);
-
       this.cachedData = Buffer.alloc(0);
       this.decoder = this.uart.pipe(
         new SlipDecoder({
@@ -80,7 +74,7 @@ export class LpLoraDriver extends Stream.EventEmitter<LpLoraDriverEvents> {
           ESC_END: 0xdc,
           ESC_ESC: 0xdd,
           ESC_START: 0xde,
-        }).pipe(new LpLoraPacketCrcChecker()),
+        }),
       );
     });
   };
@@ -107,8 +101,13 @@ export class LpLoraDriver extends Stream.EventEmitter<LpLoraDriverEvents> {
         ESC_END: 0xdc,
         ESC_ESC: 0xdd,
         ESC_START: 0xde,
-      }).pipe(new LpLoraPacketCrcChecker()),
+      }),
     );
+
+    // const uartPort = this.uart;
+    // uartPort.on("readable", () => {
+    //   console.log("Data:", uartPort.read());
+    // });
 
     this.createDecoder();
   }

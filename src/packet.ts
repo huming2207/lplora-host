@@ -1,8 +1,25 @@
 import { PacketType } from "./constant";
 import { LpLoraCorruptedError, LpLoraTypeError } from "./errors";
+import crc from "crc/crc16kermit";
+
+export const checkUartPacketCRC = (data: Buffer): boolean => {
+  const expectedCrc = data.readUint16LE(data.length - 2);
+  const chunkForChecksum = data.subarray(0, data.length - 2);
+  const actualCrc = crc(chunkForChecksum);
+  if (expectedCrc !== actualCrc) {
+    console.warn(`CRC mismatched: got 0x${expectedCrc} expect 0x${actualCrc}`);
+    return false;
+  }
+
+  return true;
+};
 
 export const deserializeUartPacket = (data: Buffer): UartPacket | null => {
-  if (data.length < 3) {
+  if (!checkUartPacketCRC(data)) {
+    throw new LpLoraCorruptedError(`UartPacket corrupted??`);
+  }
+
+  if (data.length < 5) {
     throw new LpLoraCorruptedError(`UartPacket header expects packet longer than 5, got ${data.length}`);
   }
 
@@ -12,8 +29,8 @@ export const deserializeUartPacket = (data: Buffer): UartPacket | null => {
   }
 
   switch (pktType) {
-    case PacketType.Ping: {
-      const packet = new UartPingPacket();
+    case PacketType.Pong: {
+      const packet = new UartPongPacket();
       packet.deserialize(data);
       return packet;
     }
@@ -98,6 +115,19 @@ export class UartPingPacket extends UartPacket {
   }
 }
 
+export class UartPongPacket extends UartPacket {
+  public override serialize(): Buffer {
+    this.packetType = PacketType.Pong;
+    this.payload = null;
+    const header = this.makeHeader();
+    return header;
+  }
+
+  public override deserialize(data: Buffer): void {
+    this.deserializeHeader(data);
+  }
+}
+
 export class UartAckPacket extends UartPacket {
   public override serialize(): Buffer {
     this.packetType = PacketType.Ack;
@@ -110,17 +140,3 @@ export class UartAckPacket extends UartPacket {
     this.deserializeHeader(data);
   }
 }
-
-export type LpLoraDriverEvents = {
-  packetReceived: [packet: UartPacket];
-  rawDataReceived: [data: Buffer];
-  fullDataReceived: [data: Buffer];
-  error: [err: Error | unknown | object];
-};
-
-export const SLIP_START = 0xa5;
-export const SLIP_END = 0xc0;
-export const SLIP_ESC = 0xdb;
-export const SLIP_ESC_END = 0xdc;
-export const SLIP_ESC_ESC = 0xdd;
-export const SLIP_ESC_START = 0xde;
