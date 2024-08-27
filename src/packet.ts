@@ -179,7 +179,7 @@ export class UartRadioPhyCfgPacket extends UartTxOnlyPacket {
 }
 
 export class UartRadioLoRaCfgPacket extends UartTxOnlyPacket {
-  public preambleLen: number;
+  public preambleLen: number = 10;
   public fixedHeader: boolean = false;
   public payloadLen: number;
   public enableCRC: boolean = true;
