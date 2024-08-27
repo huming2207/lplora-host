@@ -1,5 +1,12 @@
-import { PacketType } from "./constant";
-import { LpLoraCorruptedError, LpLoraTypeError } from "./errors";
+import {
+  LoRaBandwidth,
+  LoRaCodingRate,
+  LoRaSpreadingFactor,
+  PacketType,
+  RadioPaRampTime,
+  RadioPaSelect,
+} from "./constant";
+import { LpLoraCorruptedError, LpLoraNotDeserializableError, LpLoraTypeError } from "./errors";
 import crc from "crc/crc16kermit";
 
 export const checkUartPacketCRC = (data: Buffer): boolean => {
@@ -60,7 +67,7 @@ export abstract class UartPacket {
 
   public abstract serialize(): Buffer;
   public abstract deserialize(data: Buffer): void;
-  protected makeHeader(): Buffer {
+  protected prependHeader(): Buffer {
     let buf = Buffer.alloc(1);
     buf[0] = this.packetType;
 
@@ -69,7 +76,7 @@ export abstract class UartPacket {
     } else {
       const lenBuf = Buffer.alloc(2);
       lenBuf.writeUint16LE(this.payload.length);
-      buf = Buffer.concat([buf, lenBuf]);
+      buf = Buffer.concat([buf, lenBuf, this.payload]);
     }
 
     return buf;
@@ -106,7 +113,7 @@ export class UartPingPacket extends UartPacket {
   public override serialize(): Buffer {
     this.packetType = PacketType.Ping;
     this.payload = null;
-    const header = this.makeHeader();
+    const header = this.prependHeader();
     return header;
   }
 
@@ -119,7 +126,7 @@ export class UartPongPacket extends UartPacket {
   public override serialize(): Buffer {
     this.packetType = PacketType.Pong;
     this.payload = null;
-    const header = this.makeHeader();
+    const header = this.prependHeader();
     return header;
   }
 
@@ -132,11 +139,96 @@ export class UartAckPacket extends UartPacket {
   public override serialize(): Buffer {
     this.packetType = PacketType.Ack;
     this.payload = null;
-    const header = this.makeHeader();
+    const header = this.prependHeader();
     return header;
   }
 
   public override deserialize(data: Buffer): void {
     this.deserializeHeader(data);
+  }
+}
+
+export abstract class UartTxOnlyPacket extends UartPacket {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  public override deserialize(_data: Buffer): void {
+    throw new LpLoraNotDeserializableError();
+  }
+}
+
+export class UartRadioPhyCfgPacket extends UartTxOnlyPacket {
+  public paDutyCycle: number = 0x4;
+  public hpMax: number = 0x7;
+  public paSelect: RadioPaSelect = RadioPaSelect.PA_SELECT_HP;
+  public txPower: number = 0x16;
+  public rampTime: RadioPaRampTime = RadioPaRampTime.Micros10;
+  public rxBoost: boolean = true;
+
+  public override serialize(): Buffer {
+    this.packetType = PacketType.RadioPhyConfig;
+    this.payload = Buffer.from([
+      this.paDutyCycle & 0xff,
+      this.hpMax & 0xff,
+      this.paSelect & 0xff,
+      this.txPower & 0xff,
+      this.rampTime & 0xff,
+      this.rxBoost ? 1 : 0,
+    ]);
+
+    return this.prependHeader();
+  }
+}
+
+export class UartRadioLoRaCfgPacket extends UartTxOnlyPacket {
+  public preambleLen: number;
+  public fixedHeader: boolean = false;
+  public payloadLen: number;
+  public enableCRC: boolean = true;
+  public invertIQ: boolean = false;
+  public spreadFactor: LoRaSpreadingFactor = LoRaSpreadingFactor.Sf7;
+  public bandwidth: LoRaBandwidth = LoRaBandwidth.Bw125;
+  public codingRate: LoRaCodingRate = LoRaCodingRate.Cr45;
+  public lowCodingRateOptimize: boolean =
+    this.spreadFactor === LoRaSpreadingFactor.Sf12 || this.spreadFactor === LoRaSpreadingFactor.Sf11;
+  public syncWord: Buffer = Buffer.from([0x14, 0x24]);
+
+  public override serialize(): Buffer {
+    this.packetType = PacketType.RadioLoraConfig;
+    const preambleLenBuf = Buffer.alloc(2);
+    preambleLenBuf.writeUInt16LE(this.preambleLen);
+
+    let syncW: Buffer = this.syncWord;
+    if (this.syncWord.length > 2) {
+      syncW = this.syncWord.subarray(0, 2);
+    }
+
+    this.payload = Buffer.concat([
+      preambleLenBuf,
+      Buffer.from([
+        this.fixedHeader ? 0 : 1,
+        this.payloadLen & 0xff,
+        this.enableCRC ? 1 : 0,
+        this.invertIQ ? 1 : 0,
+        this.spreadFactor & 0xff,
+        this.bandwidth & 0xff,
+        this.codingRate & 0xff,
+        this.lowCodingRateOptimize ? 1 : 0,
+      ]),
+      syncW,
+    ]);
+
+    return this.prependHeader();
+  }
+}
+
+export class UartRadioFreqCfgPacket extends UartTxOnlyPacket {
+  public frequencyHz: number = 921000000;
+
+  public override serialize(): Buffer {
+    this.packetType = PacketType.RadioFreqConfig;
+    const freqBuf = Buffer.alloc(4);
+    freqBuf.writeUint32LE(this.frequencyHz);
+
+    this.payload = freqBuf;
+    return this.prependHeader();
   }
 }

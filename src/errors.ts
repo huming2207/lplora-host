@@ -23,3 +23,9 @@ export class LpLoraTypeError extends LpLoraError {
     super(message);
   }
 }
+
+export class LpLoraNotDeserializableError extends LpLoraError {
+  constructor() {
+    super("This packet is Tx-only, cannot deserialise");
+  }
+}
