@@ -232,3 +232,23 @@ export class UartRadioFreqCfgPacket extends UartTxOnlyPacket {
     return this.prependHeader();
   }
 }
+
+export class UartRadioRxPacket extends UartTxOnlyPacket {
+  public timeoutMillisec: number = 10000;
+
+  public override serialize(): Buffer {
+    this.packetType = PacketType.RadioRecvStart;
+    const buf = Buffer.alloc(4);
+    buf.writeUint32LE(this.timeoutMillisec);
+
+    this.payload = buf;
+    return this.prependHeader();
+  }
+}
+
+export class UartRadioTxPacket extends UartTxOnlyPacket {
+  public override serialize(): Buffer {
+    this.packetType = PacketType.RadioSend;
+    return this.prependHeader();
+  }
+}
