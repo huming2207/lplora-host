@@ -48,6 +48,12 @@ export const deserializeUartPacket = (data: Buffer): UartPacket | null => {
       return packet;
     }
 
+    case PacketType.RadioReceivedPacket: {
+      const packet = new UartRadioReceivedPacket();
+      packet.deserialize(data);
+      return packet;
+    }
+
     default: {
       console.warn(`Unimplemented packet type received: ${pktType}`);
       break;
@@ -105,6 +111,31 @@ export abstract class UartPacket {
           `Invalid length (only partial data received), got ${data.length} but reported ${payloadLen} bytes`,
         );
       }
+    }
+  }
+}
+
+export class UartRadioReceivedPacket extends UartPacket {
+  public receivedData: Buffer;
+  public packetRssi: number;
+  public packetSnr: number;
+  public override serialize(): Buffer {
+    throw new LpLoraNotDeserializableError();
+  }
+
+  public override deserialize(data: Buffer): void {
+    this.deserializeHeader(data); // Byte 0-2 are header
+    if (data.length < 7) {
+      throw new LpLoraCorruptedError(`Packet too short, got ${data.length}, expect at least 7 bytes`);
+    }
+
+    this.packetRssi = data.readInt16LE(3); // Byte 3-4 are RSSI
+    this.packetSnr = data.readInt16LE(5); // Packet 5-6 are SNR
+
+    if (data.length > 7) {
+      this.receivedData = Buffer.from(data.subarray(7, data.length - 2));
+    } else {
+      this.receivedData = Buffer.alloc(0);
     }
   }
 }
@@ -184,7 +215,7 @@ export class UartRadioLoRaCfgPacket extends UartTxOnlyPacket {
   public payloadLen: number;
   public enableCRC: boolean = true;
   public invertIQ: boolean = false;
-  public spreadFactor: LoRaSpreadingFactor = LoRaSpreadingFactor.Sf7;
+  public spreadFactor: LoRaSpreadingFactor = LoRaSpreadingFactor.Sf8;
   public bandwidth: LoRaBandwidth = LoRaBandwidth.Bw125;
   public codingRate: LoRaCodingRate = LoRaCodingRate.Cr45;
   public lowCodingRateOptimize: boolean =
