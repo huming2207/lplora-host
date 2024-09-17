@@ -38,8 +38,9 @@ device.sendPacket(ping);
 
 setInterval(async () => {
   const rxReq = new UartRadioRxPacket();
+  rxReq.timeoutMillisec = 350000;
   await device.sendPacket(rxReq);
-}, 10000);
+}, 35000);
 
 device.on("rawDataReceived", (data) => {
   console.log(`Raw: ${data.toString("hex")}`);
