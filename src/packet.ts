@@ -215,12 +215,12 @@ export class UartRadioLoRaCfgPacket extends UartTxOnlyPacket {
   public payloadLen: number;
   public enableCRC: boolean = true;
   public invertIQ: boolean = false;
-  public spreadFactor: LoRaSpreadingFactor = LoRaSpreadingFactor.Sf8;
+  public spreadFactor: LoRaSpreadingFactor = LoRaSpreadingFactor.Sf12;
   public bandwidth: LoRaBandwidth = LoRaBandwidth.Bw125;
   public codingRate: LoRaCodingRate = LoRaCodingRate.Cr45;
   public lowCodingRateOptimize: boolean =
     this.spreadFactor === LoRaSpreadingFactor.Sf12 || this.spreadFactor === LoRaSpreadingFactor.Sf11;
-  public syncWord: Buffer = Buffer.from([0x14, 0x24]);
+  public syncWord: Buffer = Buffer.from([0x24, 0x34]);
 
   public override serialize(): Buffer {
     this.packetType = PacketType.RadioLoraConfig;
