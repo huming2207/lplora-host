@@ -27,7 +27,7 @@ await device.sendPacket(freqCfg);
 setInterval(async () => {
   const rxReq = new UartRadioRxPacket();
   await device.sendPacket(rxReq);
-}, 11000);
+}, 10000);
 
 device.on("rawDataReceived", (data) => {
   console.log(`Raw: ${data.toString("hex")}`);
