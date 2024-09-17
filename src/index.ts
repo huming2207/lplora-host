@@ -37,6 +37,8 @@ await device.sendPacket(freqCfg);
 device.sendPacket(ping);
 
 setInterval(async () => {
+  await device.sendPacket(loraCfg);
+  await device.sendPacket(freqCfg);
   const rxReq = new UartRadioRxPacket();
   rxReq.timeoutMillisec = 350000;
   await device.sendPacket(rxReq);
