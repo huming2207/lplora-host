@@ -47,8 +47,8 @@ device.on("rawDataReceived", (data) => {
 });
 
 device.on("packetReceived", (data) => {
-  console.log(`Packet: ${JSON.stringify(data)}\r\n`);
-  fs.appendFile("packet.log", `${new Date().toString()},${JSON.stringify(data)}`, (err) => {
+  console.log(`Packet: ${JSON.stringify(data)}`);
+  fs.appendFile("packet.log", `${new Date().toString()},${JSON.stringify(data)}\r\n`, (err) => {
     console.error(err);
   });
 });
